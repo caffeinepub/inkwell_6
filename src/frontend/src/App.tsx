@@ -8,18 +8,23 @@ import {
   Clock,
   Heart,
   Lock,
+  LogIn,
   Menu,
   MessageSquare,
+  Moon,
   PenLine,
   Plus,
   Search,
   Star,
+  Sun,
   Trash2,
   TrendingUp,
+  User,
   X,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useTheme } from "./hooks/useTheme";
 
 const SORT_OPTIONS = [
   { label: "Most Recent", icon: Clock },
@@ -58,9 +63,15 @@ type PublicComment = {
   timestamp: string;
 };
 
-const ADMIN_PASSWORD = "admin123";
+type CommenterAccount = {
+  username: string;
+  password: string;
+};
+
+const ADMIN_PASSWORD = "3275";
 
 export default function App() {
+  const { isDark, toggleTheme } = useTheme();
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -102,6 +113,91 @@ export default function App() {
   >({});
   const [publicCommentName, setPublicCommentName] = useState("");
   const [publicCommentMessage, setPublicCommentMessage] = useState("");
+
+  // ── Commenter Account state ──
+  const [commenterAccounts, setCommenterAccounts] = useState<
+    CommenterAccount[]
+  >([]);
+  const [commenterUser, setCommenterUser] = useState<string | null>(null);
+  const [showCommenterAuth, setShowCommenterAuth] = useState(false);
+  const [commenterAuthMode, setCommenterAuthMode] = useState<
+    "signin" | "signup"
+  >("signin");
+  const [commenterUsername, setCommenterUsername] = useState("");
+  const [commenterPassword, setCommenterPassword] = useState("");
+  const [commenterAuthError, setCommenterAuthError] = useState("");
+
+  // Load accounts + session from localStorage on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("commenter_accounts");
+      if (stored) setCommenterAccounts(JSON.parse(stored));
+    } catch {
+      // ignore
+    }
+    const session = localStorage.getItem("commenter_session");
+    if (session) setCommenterUser(session);
+  }, []);
+
+  const openCommenterAuth = (mode: "signin" | "signup" = "signin") => {
+    setCommenterAuthMode(mode);
+    setCommenterUsername("");
+    setCommenterPassword("");
+    setCommenterAuthError("");
+    setShowCommenterAuth(true);
+  };
+
+  const closeCommenterAuth = () => {
+    setShowCommenterAuth(false);
+    setCommenterUsername("");
+    setCommenterPassword("");
+    setCommenterAuthError("");
+  };
+
+  const handleCommenterSignUp = () => {
+    const username = commenterUsername.trim();
+    const password = commenterPassword.trim();
+    if (!username || !password) {
+      setCommenterAuthError("Please fill in all fields.");
+      return;
+    }
+    if (
+      commenterAccounts.some(
+        (a) => a.username.toLowerCase() === username.toLowerCase(),
+      )
+    ) {
+      setCommenterAuthError("Username already taken. Try another.");
+      return;
+    }
+    const updated = [...commenterAccounts, { username, password }];
+    setCommenterAccounts(updated);
+    localStorage.setItem("commenter_accounts", JSON.stringify(updated));
+    localStorage.setItem("commenter_session", username);
+    setCommenterUser(username);
+    closeCommenterAuth();
+  };
+
+  const handleCommenterSignIn = () => {
+    const username = commenterUsername.trim();
+    const password = commenterPassword.trim();
+    const account = commenterAccounts.find(
+      (a) =>
+        a.username.toLowerCase() === username.toLowerCase() &&
+        a.password === password,
+    );
+    if (!account) {
+      setCommenterAuthError("Incorrect username or password.");
+      return;
+    }
+    localStorage.setItem("commenter_session", account.username);
+    setCommenterUser(account.username);
+    closeCommenterAuth();
+  };
+
+  const handleCommenterSignOut = () => {
+    localStorage.removeItem("commenter_session");
+    setCommenterUser(null);
+  };
 
   const filteredSuggestions = stories
     .filter(
@@ -206,10 +302,11 @@ export default function App() {
   };
 
   const handleSubmitPublicComment = (storyId: number) => {
-    if (!publicCommentName.trim() || !publicCommentMessage.trim()) return;
+    const name = commenterUser ?? publicCommentName.trim();
+    if (!name || !publicCommentMessage.trim()) return;
     const comment: PublicComment = {
       id: Date.now(),
-      authorName: publicCommentName.trim(),
+      authorName: name,
       message: publicCommentMessage.trim(),
       timestamp: new Date().toLocaleString(),
     };
@@ -217,7 +314,7 @@ export default function App() {
       ...prev,
       [storyId]: [...(prev[storyId] ?? []), comment],
     }));
-    setPublicCommentName("");
+    if (!commenterUser) setPublicCommentName("");
     setPublicCommentMessage("");
   };
 
@@ -263,7 +360,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* ───────── HEADER ───────── */}
-      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur border-b border-border shadow-xs">
+      <header className="sticky top-0 z-50 bg-card/95 backdrop-blur border-b border-border shadow-xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 gap-4">
             {/* Logo + Name */}
@@ -291,7 +388,7 @@ export default function App() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
                   placeholder="Search stories, authors..."
-                  className="pl-9 bg-muted/50 border-border focus:bg-white transition-colors"
+                  className="pl-9 bg-muted/50 border-border focus:bg-background transition-colors"
                   value={searchQuery}
                   onChange={(e) => {
                     setSearchQuery(e.target.value);
@@ -309,7 +406,7 @@ export default function App() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -6 }}
                     transition={{ duration: 0.15 }}
-                    className="absolute top-full mt-2 left-0 right-0 bg-white border border-border rounded-lg shadow-lg overflow-hidden z-50"
+                    className="absolute top-full mt-2 left-0 right-0 bg-card border border-border rounded-lg shadow-lg overflow-hidden z-50"
                   >
                     {filteredSuggestions.map((s) => (
                       <button
@@ -339,6 +436,40 @@ export default function App() {
               >
                 About
               </Button>
+
+              {/* Commenter user area */}
+              {commenterUser ? (
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 text-sm text-foreground px-2 py-1 rounded-md bg-primary/10">
+                    <User className="w-3.5 h-3.5 text-primary" />
+                    <span className="font-medium text-primary max-w-24 truncate">
+                      {commenterUser}
+                    </span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleCommenterSignOut}
+                    data-ocid="nav.commenter_signout_button"
+                  >
+                    Sign Out
+                  </Button>
+                </div>
+              ) : (
+                !isAdmin && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openCommenterAuth("signin")}
+                    data-ocid="nav.commenter_login_button"
+                    className="gap-1.5 border-primary/40 text-primary hover:bg-primary/10"
+                  >
+                    <LogIn className="w-3.5 h-3.5" />
+                    Join / Sign In
+                  </Button>
+                )
+              )}
+
               {isAdmin ? (
                 <>
                   <Button
@@ -355,19 +486,36 @@ export default function App() {
                     onClick={handleSignOut}
                     data-ocid="nav.signout_button"
                   >
-                    Sign Out
+                    Admin Out
                   </Button>
                 </>
               ) : (
                 <Button
                   size="sm"
-                  className="bg-primary text-primary-foreground hover:bg-primary/90"
+                  variant="ghost"
+                  className="text-muted-foreground text-xs"
                   onClick={() => setShowSignIn(true)}
                   data-ocid="nav.submit_button"
                 >
-                  Sign In
+                  Admin
                 </Button>
               )}
+              {/* Theme Toggle */}
+              <button
+                type="button"
+                onClick={toggleTheme}
+                className="p-2 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                aria-label={
+                  isDark ? "Switch to light mode" : "Switch to dark mode"
+                }
+                data-ocid="nav.toggle"
+              >
+                {isDark ? (
+                  <Sun className="w-4 h-4" />
+                ) : (
+                  <Moon className="w-4 h-4" />
+                )}
+              </button>
             </nav>
 
             {/* Mobile Menu Toggle */}
@@ -394,10 +542,11 @@ export default function App() {
               animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="md:hidden border-t border-border bg-white overflow-hidden"
+              className="md:hidden border-t border-border overflow-hidden"
             >
-              <div className="px-4 py-3 space-y-2">
-                <div className="relative">
+              <div className="px-4 py-3 space-y-1">
+                {/* Mobile search */}
+                <div className="relative mb-3">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
                     placeholder="Search stories..."
@@ -407,66 +556,118 @@ export default function App() {
                     data-ocid="mobile.search_input"
                   />
                 </div>
-                <div className="flex flex-col gap-1 pt-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="justify-start"
-                    data-ocid="mobile.nav.primary_button"
-                  >
-                    Browse
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="justify-start"
-                    data-ocid="mobile.nav.secondary_button"
-                  >
-                    About
-                  </Button>
-                  {isAdmin ? (
-                    <>
-                      <Button
-                        size="sm"
-                        className="justify-start bg-primary text-primary-foreground"
-                        onClick={() => {
-                          setShowAddStory(true);
-                          setMobileMenuOpen(false);
-                        }}
-                        data-ocid="mobile.nav.add_story_button"
-                      >
-                        <Plus className="w-4 h-4 mr-1" /> Add Story
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="justify-start"
-                        onClick={handleSignOut}
-                      >
-                        Sign Out
-                      </Button>
-                    </>
-                  ) : (
+
+                {/* Commenter status on mobile */}
+                {commenterUser ? (
+                  <div className="flex items-center justify-between py-2 px-1">
+                    <div className="flex items-center gap-2 text-sm">
+                      <User className="w-4 h-4 text-primary" />
+                      <span className="font-medium text-primary">
+                        {commenterUser}
+                      </span>
+                    </div>
                     <Button
+                      variant="ghost"
                       size="sm"
-                      className="justify-start bg-primary text-primary-foreground"
                       onClick={() => {
-                        setShowSignIn(true);
+                        handleCommenterSignOut();
                         setMobileMenuOpen(false);
                       }}
-                      data-ocid="mobile.nav.submit_button"
                     >
-                      Sign In
+                      Sign Out
                     </Button>
+                  </div>
+                ) : (
+                  !isAdmin && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full justify-start gap-2 border-primary/40 text-primary"
+                      onClick={() => {
+                        openCommenterAuth("signin");
+                        setMobileMenuOpen(false);
+                      }}
+                      data-ocid="mobile.commenter_login_button"
+                    >
+                      <LogIn className="w-4 h-4" />
+                      Join / Sign In as Commenter
+                    </Button>
+                  )
+                )}
+
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-start"
+                  onClick={toggleTheme}
+                  data-ocid="mobile.nav.toggle"
+                >
+                  {isDark ? (
+                    <Sun className="w-4 h-4 mr-2" />
+                  ) : (
+                    <Moon className="w-4 h-4 mr-2" />
                   )}
-                </div>
+                  {isDark ? "Light Mode" : "Dark Mode"}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="justify-start w-full"
+                  data-ocid="mobile.nav.primary_button"
+                >
+                  Browse
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="justify-start w-full"
+                  data-ocid="mobile.nav.secondary_button"
+                >
+                  About
+                </Button>
+                {isAdmin ? (
+                  <>
+                    <Button
+                      size="sm"
+                      className="w-full justify-start bg-primary text-primary-foreground"
+                      onClick={() => {
+                        setShowAddStory(true);
+                        setMobileMenuOpen(false);
+                      }}
+                      data-ocid="mobile.nav.add_story_button"
+                    >
+                      <Plus className="w-4 h-4 mr-1" /> Add Story
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full justify-start"
+                      onClick={handleSignOut}
+                    >
+                      Admin Sign Out
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="w-full justify-start text-muted-foreground text-xs"
+                    onClick={() => {
+                      setShowSignIn(true);
+                      setMobileMenuOpen(false);
+                    }}
+                    data-ocid="mobile.nav.submit_button"
+                  >
+                    Admin Sign In
+                  </Button>
+                )}
               </div>
             </motion.div>
           )}
         </AnimatePresence>
       </header>
 
-      {/* ───────── SIGN IN MODAL ───────── */}
+      {/* ───────── ADMIN SIGN IN MODAL ───────── */}
       <AnimatePresence>
         {showSignIn && (
           <motion.div
@@ -482,7 +683,7 @@ export default function App() {
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm"
+              className="bg-card rounded-xl shadow-xl p-6 w-full max-w-sm"
             >
               <h2 className="font-serif text-xl font-semibold mb-1">
                 Admin Sign In
@@ -522,6 +723,205 @@ export default function App() {
         )}
       </AnimatePresence>
 
+      {/* ───────── COMMENTER AUTH MODAL ───────── */}
+      <AnimatePresence>
+        {showCommenterAuth && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) closeCommenterAuth();
+            }}
+            data-ocid="commenter_auth.modal"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-card rounded-xl shadow-xl p-6 w-full max-w-sm"
+            >
+              <div className="flex items-center justify-between mb-5">
+                <div>
+                  <h2 className="font-serif text-xl font-semibold text-foreground flex items-center gap-2">
+                    <User className="w-5 h-5 text-primary" />
+                    Commenter Account
+                  </h2>
+                  <p className="text-sm text-muted-foreground mt-0.5">
+                    Sign in to comment under your name.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground"
+                  onClick={closeCommenterAuth}
+                  data-ocid="commenter_auth.close_button"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Tab toggle */}
+              <div className="flex rounded-lg bg-muted p-1 mb-5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCommenterAuthMode("signin");
+                    setCommenterAuthError("");
+                  }}
+                  className={`flex-1 py-1.5 px-3 rounded-md text-sm font-medium transition-all ${
+                    commenterAuthMode === "signin"
+                      ? "bg-card text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                  data-ocid="commenter_auth.signin_tab"
+                >
+                  Sign In
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCommenterAuthMode("signup");
+                    setCommenterAuthError("");
+                  }}
+                  className={`flex-1 py-1.5 px-3 rounded-md text-sm font-medium transition-all ${
+                    commenterAuthMode === "signup"
+                      ? "bg-card text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                  data-ocid="commenter_auth.signup_tab"
+                >
+                  Create Account
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label
+                    htmlFor="commenter-username"
+                    className="text-xs font-medium text-muted-foreground uppercase tracking-wide"
+                  >
+                    Username
+                  </label>
+                  <Input
+                    id="commenter-username"
+                    placeholder="Your username"
+                    value={commenterUsername}
+                    onChange={(e) => setCommenterUsername(e.target.value)}
+                    onKeyDown={(e) =>
+                      e.key === "Enter" &&
+                      (commenterAuthMode === "signin"
+                        ? handleCommenterSignIn()
+                        : handleCommenterSignUp())
+                    }
+                    className="mt-1"
+                    data-ocid="commenter_auth.input"
+                  />
+                </div>
+                <div>
+                  <label
+                    htmlFor="commenter-password"
+                    className="text-xs font-medium text-muted-foreground uppercase tracking-wide"
+                  >
+                    Password
+                  </label>
+                  <Input
+                    id="commenter-password"
+                    type="password"
+                    placeholder="Your password"
+                    value={commenterPassword}
+                    onChange={(e) => setCommenterPassword(e.target.value)}
+                    onKeyDown={(e) =>
+                      e.key === "Enter" &&
+                      (commenterAuthMode === "signin"
+                        ? handleCommenterSignIn()
+                        : handleCommenterSignUp())
+                    }
+                    className="mt-1"
+                    data-ocid="commenter_auth.input"
+                  />
+                </div>
+              </div>
+
+              {commenterAuthError && (
+                <p
+                  className="text-sm text-red-500 mt-3"
+                  data-ocid="commenter_auth.error_state"
+                >
+                  {commenterAuthError}
+                </p>
+              )}
+
+              <div className="flex gap-2 mt-5">
+                {commenterAuthMode === "signin" ? (
+                  <Button
+                    className="flex-1"
+                    onClick={handleCommenterSignIn}
+                    disabled={
+                      !commenterUsername.trim() || !commenterPassword.trim()
+                    }
+                    data-ocid="commenter_auth.submit_button"
+                  >
+                    Sign In
+                  </Button>
+                ) : (
+                  <Button
+                    className="flex-1"
+                    onClick={handleCommenterSignUp}
+                    disabled={
+                      !commenterUsername.trim() || !commenterPassword.trim()
+                    }
+                    data-ocid="commenter_auth.submit_button"
+                  >
+                    Create Account
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={closeCommenterAuth}
+                  data-ocid="commenter_auth.cancel_button"
+                >
+                  Cancel
+                </Button>
+              </div>
+
+              {commenterAuthMode === "signin" && (
+                <p className="text-center text-xs text-muted-foreground mt-3">
+                  No account yet?{" "}
+                  <button
+                    type="button"
+                    className="text-primary underline hover:no-underline"
+                    onClick={() => {
+                      setCommenterAuthMode("signup");
+                      setCommenterAuthError("");
+                    }}
+                  >
+                    Create one
+                  </button>
+                </p>
+              )}
+              {commenterAuthMode === "signup" && (
+                <p className="text-center text-xs text-muted-foreground mt-3">
+                  Already have an account?{" "}
+                  <button
+                    type="button"
+                    className="text-primary underline hover:no-underline"
+                    onClick={() => {
+                      setCommenterAuthMode("signin");
+                      setCommenterAuthError("");
+                    }}
+                  >
+                    Sign in
+                  </button>
+                </p>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ───────── ADD STORY MODAL ───────── */}
       <AnimatePresence>
         {showAddStory && (
@@ -538,7 +938,7 @@ export default function App() {
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white rounded-xl shadow-xl p-6 w-full max-w-lg my-auto"
+              className="bg-card rounded-xl shadow-xl p-6 w-full max-w-lg my-auto"
             >
               <h2 className="font-serif text-xl font-semibold mb-4 flex items-center gap-2">
                 <PenLine className="w-5 h-5 text-primary" /> Add New Story
@@ -608,7 +1008,7 @@ export default function App() {
                     onChange={(e) =>
                       setNewStory((p) => ({ ...p, excerpt: e.target.value }))
                     }
-                    className="mt-1 w-full border border-input rounded-md px-3 py-2 text-sm resize-none h-24 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    className="mt-1 w-full border border-input rounded-md px-3 py-2 text-sm resize-none bg-background text-foreground h-24 focus:outline-none focus:ring-2 focus:ring-primary/30"
                   />
                 </div>
                 <div>
@@ -663,7 +1063,7 @@ export default function App() {
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white rounded-xl shadow-xl p-6 w-full max-w-lg my-auto"
+              className="bg-card rounded-xl shadow-xl p-6 w-full max-w-lg my-auto"
             >
               {/* Modal Header */}
               <div className="flex items-start justify-between mb-5">
@@ -779,35 +1179,88 @@ export default function App() {
 
                   {/* Submit public comment form */}
                   <div className="border-t border-border pt-4 space-y-3">
-                    <h3 className="text-sm font-semibold text-foreground">
-                      Leave a public comment
-                    </h3>
-                    <Input
-                      placeholder="Your name"
-                      value={publicCommentName}
-                      onChange={(e) => setPublicCommentName(e.target.value)}
-                      data-ocid="comments.input"
-                    />
-                    <textarea
-                      placeholder="Write a comment..."
-                      value={publicCommentMessage}
-                      onChange={(e) => setPublicCommentMessage(e.target.value)}
-                      className="w-full border border-input rounded-md px-3 py-2 text-sm resize-none h-20 focus:outline-none focus:ring-2 focus:ring-primary/30"
-                      data-ocid="comments.textarea"
-                    />
-                    <Button
-                      className="w-full"
-                      onClick={() =>
-                        handleSubmitPublicComment(showCommentsModal!)
-                      }
-                      disabled={
-                        !publicCommentName.trim() ||
-                        !publicCommentMessage.trim()
-                      }
-                      data-ocid="comments.submit_button"
-                    >
-                      Post Comment
-                    </Button>
+                    {commenterUser ? (
+                      <>
+                        <div className="flex items-center gap-2 py-1.5 px-3 rounded-lg bg-primary/8 border border-primary/20">
+                          <User className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                          <span className="text-sm text-foreground">
+                            Commenting as{" "}
+                            <span className="font-semibold text-primary">
+                              {commenterUser}
+                            </span>
+                          </span>
+                        </div>
+                        <textarea
+                          placeholder="Write a comment..."
+                          value={publicCommentMessage}
+                          onChange={(e) =>
+                            setPublicCommentMessage(e.target.value)
+                          }
+                          className="w-full border border-input rounded-md px-3 py-2 text-sm resize-none bg-background text-foreground h-20 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                          data-ocid="comments.textarea"
+                        />
+                        <Button
+                          className="w-full"
+                          onClick={() =>
+                            handleSubmitPublicComment(showCommentsModal!)
+                          }
+                          disabled={!publicCommentMessage.trim()}
+                          data-ocid="comments.submit_button"
+                        >
+                          Post Comment
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        {/* Sign-in nudge */}
+                        <div className="flex items-center justify-between py-2.5 px-3 rounded-lg bg-muted/40 border border-border">
+                          <span className="text-sm text-muted-foreground">
+                            Have an account?
+                          </span>
+                          <button
+                            type="button"
+                            className="text-sm font-medium text-primary underline hover:no-underline"
+                            onClick={() => {
+                              closeCommentsModal();
+                              openCommenterAuth("signin");
+                            }}
+                          >
+                            Sign in to comment
+                          </button>
+                        </div>
+                        <h3 className="text-sm font-semibold text-foreground">
+                          Or leave a comment as guest
+                        </h3>
+                        <Input
+                          placeholder="Your name"
+                          value={publicCommentName}
+                          onChange={(e) => setPublicCommentName(e.target.value)}
+                          data-ocid="comments.input"
+                        />
+                        <textarea
+                          placeholder="Write a comment..."
+                          value={publicCommentMessage}
+                          onChange={(e) =>
+                            setPublicCommentMessage(e.target.value)
+                          }
+                          className="w-full border border-input rounded-md px-3 py-2 text-sm resize-none bg-background text-foreground h-20 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                          data-ocid="comments.textarea"
+                        />
+                        <Button
+                          className="w-full"
+                          onClick={() =>
+                            handleSubmitPublicComment(showCommentsModal!)
+                          }
+                          disabled={
+                            !publicCommentName.trim() ||
+                            !publicCommentMessage.trim()
+                          }
+                          data-ocid="comments.submit_button"
+                        >
+                          Post Comment
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </TabsContent>
 
@@ -878,7 +1331,7 @@ export default function App() {
                                   onChange={(e) =>
                                     setAdminReplyText(e.target.value)
                                   }
-                                  className="w-full border border-input rounded-md px-3 py-2 text-sm resize-none h-20 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                                  className="w-full border border-input rounded-md px-3 py-2 text-sm resize-none bg-background text-foreground h-20 focus:outline-none focus:ring-2 focus:ring-primary/30"
                                   data-ocid="comments.textarea"
                                 />
                                 <div className="flex gap-2">
@@ -937,21 +1390,33 @@ export default function App() {
                             <h3 className="text-sm font-semibold text-foreground">
                               Leave a private comment
                             </h3>
-                            <Input
-                              placeholder="Your name"
-                              value={privateCommentName}
-                              onChange={(e) =>
-                                setPrivateCommentName(e.target.value)
-                              }
-                              data-ocid="comments.input"
-                            />
+                            {commenterUser ? (
+                              <div className="flex items-center gap-2 py-1.5 px-3 rounded-lg bg-primary/8 border border-primary/20">
+                                <User className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                                <span className="text-sm text-foreground">
+                                  Commenting as{" "}
+                                  <span className="font-semibold text-primary">
+                                    {commenterUser}
+                                  </span>
+                                </span>
+                              </div>
+                            ) : (
+                              <Input
+                                placeholder="Your name"
+                                value={privateCommentName}
+                                onChange={(e) =>
+                                  setPrivateCommentName(e.target.value)
+                                }
+                                data-ocid="comments.input"
+                              />
+                            )}
                             <textarea
                               placeholder="Your private comment..."
                               value={privateCommentMessage}
                               onChange={(e) =>
                                 setPrivateCommentMessage(e.target.value)
                               }
-                              className="w-full border border-input rounded-md px-3 py-2 text-sm resize-none h-24 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                              className="w-full border border-input rounded-md px-3 py-2 text-sm resize-none bg-background text-foreground h-24 focus:outline-none focus:ring-2 focus:ring-primary/30"
                               data-ocid="comments.textarea"
                             />
                             <p className="text-xs text-muted-foreground flex items-center gap-1">
@@ -961,12 +1426,36 @@ export default function App() {
                             </p>
                             <Button
                               className="w-full"
-                              onClick={() =>
-                                handleSubmitPrivateComment(showCommentsModal!)
-                              }
+                              onClick={() => {
+                                if (commenterUser) {
+                                  // logged-in commenter: use their username
+                                  if (!privateCommentMessage.trim()) return;
+                                  const comment: PrivateComment = {
+                                    id: Date.now(),
+                                    authorName: commenterUser,
+                                    message: privateCommentMessage.trim(),
+                                    timestamp: new Date().toLocaleString(),
+                                  };
+                                  setPrivateComments((prev) => ({
+                                    ...prev,
+                                    [showCommentsModal!]: [
+                                      ...(prev[showCommentsModal!] ?? []),
+                                      comment,
+                                    ],
+                                  }));
+                                  setViewingAsName(commenterUser);
+                                  setPrivateCommentMessage("");
+                                } else {
+                                  handleSubmitPrivateComment(
+                                    showCommentsModal!,
+                                  );
+                                }
+                              }}
                               disabled={
-                                !privateCommentName.trim() ||
-                                !privateCommentMessage.trim()
+                                commenterUser
+                                  ? !privateCommentMessage.trim()
+                                  : !privateCommentName.trim() ||
+                                    !privateCommentMessage.trim()
                               }
                               data-ocid="comments.submit_button"
                             >
@@ -975,32 +1464,34 @@ export default function App() {
                           </div>
 
                           {/* View existing comments */}
-                          <div className="border-t border-border pt-4 space-y-3">
-                            <h3 className="text-sm font-semibold text-foreground">
-                              View my existing comments
-                            </h3>
-                            <div className="flex gap-2">
-                              <Input
-                                placeholder="Enter your name"
-                                value={viewNameInput}
-                                onChange={(e) =>
-                                  setViewNameInput(e.target.value)
-                                }
-                                data-ocid="comments.search_input"
-                              />
-                              <Button
-                                variant="outline"
-                                onClick={() => {
-                                  if (viewNameInput.trim())
-                                    setViewingAsName(viewNameInput.trim());
-                                }}
-                                disabled={!viewNameInput.trim()}
-                                data-ocid="comments.secondary_button"
-                              >
-                                View
-                              </Button>
+                          {!commenterUser && (
+                            <div className="border-t border-border pt-4 space-y-3">
+                              <h3 className="text-sm font-semibold text-foreground">
+                                View my existing comments
+                              </h3>
+                              <div className="flex gap-2">
+                                <Input
+                                  placeholder="Enter your name"
+                                  value={viewNameInput}
+                                  onChange={(e) =>
+                                    setViewNameInput(e.target.value)
+                                  }
+                                  data-ocid="comments.search_input"
+                                />
+                                <Button
+                                  variant="outline"
+                                  onClick={() => {
+                                    if (viewNameInput.trim())
+                                      setViewingAsName(viewNameInput.trim());
+                                  }}
+                                  disabled={!viewNameInput.trim()}
+                                  data-ocid="comments.secondary_button"
+                                >
+                                  View
+                                </Button>
+                              </div>
                             </div>
-                          </div>
+                          )}
                         </div>
                       ) : (
                         /* Showing this visitor's comments */
@@ -1012,18 +1503,20 @@ export default function App() {
                                 {viewingAsName}
                               </span>
                             </p>
-                            <button
-                              type="button"
-                              className="text-xs text-primary underline hover:no-underline"
-                              onClick={() => {
-                                setViewingAsName("");
-                                setViewNameInput("");
-                                setPrivateCommentName("");
-                                setPrivateCommentMessage("");
-                              }}
-                            >
-                              Switch name
-                            </button>
+                            {!commenterUser && (
+                              <button
+                                type="button"
+                                className="text-xs text-primary underline hover:no-underline"
+                                onClick={() => {
+                                  setViewingAsName("");
+                                  setViewNameInput("");
+                                  setPrivateCommentName("");
+                                  setPrivateCommentMessage("");
+                                }}
+                              >
+                                Switch name
+                              </button>
+                            )}
                           </div>
 
                           {myPrivateComments.length === 0 ? (
@@ -1080,7 +1573,7 @@ export default function App() {
                               onChange={(e) =>
                                 setPrivateCommentMessage(e.target.value)
                               }
-                              className="w-full border border-input rounded-md px-3 py-2 text-sm resize-none h-20 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                              className="w-full border border-input rounded-md px-3 py-2 text-sm resize-none bg-background text-foreground h-20 focus:outline-none focus:ring-2 focus:ring-primary/30"
                               data-ocid="comments.textarea"
                             />
                             <Button
@@ -1150,7 +1643,7 @@ export default function App() {
               className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all border ${
                 activeSort === label
                   ? "bg-primary text-primary-foreground border-primary shadow-glow"
-                  : "bg-white border-border text-muted-foreground hover:border-primary/60 hover:text-foreground"
+                  : "bg-card border-border text-muted-foreground hover:border-primary/60 hover:text-foreground"
               }`}
               data-ocid="stories.filter.tab"
             >
@@ -1193,7 +1686,7 @@ export default function App() {
                 initial={{ opacity: 0, y: 24 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4, delay: idx * 0.07 }}
-                className="bg-white rounded-xl border border-border shadow-xs hover:shadow-md hover:border-primary/40 transition-all group flex flex-col"
+                className="bg-card rounded-xl border border-border shadow-xs hover:shadow-md hover:border-primary/40 transition-all group flex flex-col"
                 data-ocid={`stories.item.${idx + 1}`}
               >
                 {/* Card top */}
@@ -1315,16 +1808,28 @@ export default function App() {
             transition={{ delay: 0.4, duration: 0.5 }}
             className="mt-12 text-center"
           >
-            <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-full px-5 py-2.5 text-sm text-primary font-medium">
-              <Star className="w-4 h-4 fill-primary" />
-              Sign in to leave reviews and track your reading history
-            </div>
+            {commenterUser ? (
+              <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-full px-5 py-2.5 text-sm text-primary font-medium">
+                <User className="w-4 h-4" />
+                Signed in as <span className="font-bold">{commenterUser}</span>{" "}
+                — ready to comment!
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-full px-5 py-2.5 text-sm text-primary font-medium cursor-pointer hover:bg-primary/15 transition-colors"
+                onClick={() => openCommenterAuth("signup")}
+              >
+                <Star className="w-4 h-4 fill-primary" />
+                Create a free account to comment and track your reading
+              </button>
+            )}
           </motion.div>
         )}
       </main>
 
       {/* ───────── FOOTER ───────── */}
-      <footer className="border-t border-border bg-white mt-8">
+      <footer className="border-t border-border bg-card mt-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2.5">
             <img

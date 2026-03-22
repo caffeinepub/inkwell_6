@@ -1,26 +1,29 @@
-# Story Reviews V4 - Public Comments
+# Story Reviews - Version 6
 
 ## Current State
-V3 has private comments only: users submit with a name, admin sees all and can reply privately. No public discussion between readers exists.
+The platform has admin login (password: 3275), guest browsing, public comments (commenter enters a name manually), and private comments. There is no account system for regular commenters.
 
 ## Requested Changes (Diff)
 
 ### Add
-- Public comments section on each story: any visitor can leave a comment with a display name and message, visible to all readers
-- Public comments tab/toggle in the comments modal (alongside private comments)
-- Comment count on story cards should reflect both public and private comments
+- Commenter account registration: username + password signup
+- Commenter login: sign in with username + password to access commenting
+- When signed in as a commenter, their username is used automatically for public and private comments (no need to type name)
+- Sign out button for logged-in commenters
+- A "Sign In to Comment" prompt shown to guests when they try to comment
 
 ### Modify
-- Comments modal: add tabs to switch between "Public" and "Private" sections
-- Admin can see and delete public comments
+- Public comment form: if commenter is logged in, auto-fill their name; if not, show sign-in prompt
+- Private comment form: same as above
+- Header: show logged-in commenter's username and sign-out button
 
 ### Remove
-- Nothing removed
+- Manual name entry for comments when a commenter is logged in
 
 ## Implementation Plan
-1. Add PublicComment type with id, authorName, message, timestamp
-2. Add publicComments state: Record<storyId, PublicComment[]>
-3. Update comments modal with tab switcher (Public / Private)
-4. Public tab: show all public comments + form to add one (name + message)
-5. Admin: can delete any public comment
-6. Update comment count badge on story cards to include public comments
+1. Add commenter accounts to the backend (register, login, getCommenterByUsername)
+2. Store commenter session in frontend state (username, isLoggedIn)
+3. Add Sign Up / Sign In modal for commenters
+4. Show commenter username in header when logged in + sign out button
+5. Auto-populate commenter name in public and private comment forms when signed in
+6. Show "Please sign in to comment" message to guests trying to comment
