@@ -6,6 +6,7 @@ import {
   BookOpen,
   Bookmark,
   Clock,
+  Eye,
   EyeOff,
   Globe,
   Heart,
@@ -51,6 +52,7 @@ type Story = {
   tags: string[];
   series?: string;
   seriesOrder?: number;
+  isPublic: boolean;
 };
 
 type PrivateComment = {
@@ -96,6 +98,7 @@ When she called Zoey's name I just laid there waiting for food or to go outside 
     hearts: 0,
     reads: 0,
     tags: ["fantasy", "dogs", "short story"],
+    isPublic: true,
   },
 ];
 
@@ -121,6 +124,7 @@ export default function App() {
     body: "",
     readTime: "",
     tags: "",
+    makePublic: false,
   });
 
   // Private Comments state
@@ -176,7 +180,7 @@ export default function App() {
       const existingIds = new Set(existing.map((s: Story) => s.id));
       const merged = [
         ...SEED_STORIES.filter((s) => !existingIds.has(s.id)),
-        ...existing,
+        ...existing.map((s: Story) => ({ ...s, isPublic: s.isPublic ?? true })),
       ];
       setStories(merged);
     } catch {
@@ -328,7 +332,7 @@ export default function App() {
     setIsAdmin(false);
   };
 
-  const handleAddStory = () => {
+  const handleAddStory = (makePublic = false) => {
     if (
       !newStory.title.trim() ||
       !newStory.excerpt.trim() ||
@@ -350,6 +354,7 @@ export default function App() {
         .split(",")
         .map((t) => t.trim())
         .filter(Boolean),
+      isPublic: makePublic,
     };
     setStories((prev) => [story, ...prev]);
     setNewStory({
@@ -360,8 +365,15 @@ export default function App() {
       body: "",
       readTime: "",
       tags: "",
+      makePublic: false,
     });
     setShowAddStory(false);
+  };
+
+  const handleTogglePublic = (id: number) => {
+    setStories((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, isPublic: !s.isPublic } : s)),
+    );
   };
 
   const handleDeleteStory = (id: number) => {
@@ -1135,22 +1147,37 @@ export default function App() {
                   />
                 </div>
               </div>
-              <div className="flex gap-2 mt-5">
+              <div className="flex gap-2 mt-5 flex-wrap">
                 <Button
+                  variant="outline"
                   className="flex-1"
-                  onClick={handleAddStory}
+                  onClick={() => handleAddStory(false)}
                   disabled={
                     !newStory.title.trim() ||
                     !newStory.excerpt.trim() ||
                     !newStory.body.trim()
                   }
+                  data-ocid="story.secondary_button"
                 >
-                  Publish Story
+                  Save as Draft
                 </Button>
                 <Button
-                  variant="outline"
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                  onClick={() => handleAddStory(true)}
+                  disabled={
+                    !newStory.title.trim() ||
+                    !newStory.excerpt.trim() ||
+                    !newStory.body.trim()
+                  }
+                  data-ocid="story.primary_button"
+                >
+                  Make Public
+                </Button>
+                <Button
+                  variant="ghost"
                   className="flex-1"
                   onClick={() => setShowAddStory(false)}
+                  data-ocid="story.cancel_button"
                 >
                   Cancel
                 </Button>
@@ -1988,7 +2015,8 @@ export default function App() {
             </div>
 
             {/* ───────── STORY GRID ───────── */}
-            {stories.length === 0 ? (
+            {(isAdmin ? stories : stories.filter((s) => s.isPublic)).length ===
+            0 ? (
               <motion.div
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -2017,124 +2045,159 @@ export default function App() {
               </motion.div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {stories.map((story, idx) => (
-                  <motion.article
-                    key={story.id}
-                    initial={{ opacity: 0, y: 24 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.4, delay: idx * 0.07 }}
-                    className="bg-card rounded-xl border border-border shadow-xs hover:shadow-md hover:border-primary/40 transition-all group flex flex-col cursor-pointer"
-                    onClick={() => setSelectedStory(story)}
-                    data-ocid={`stories.item.${idx + 1}`}
-                  >
-                    {/* Card top */}
-                    <div className="relative p-5 flex-1">
-                      {story.series && (
-                        <Badge
-                          variant="secondary"
-                          className="mb-3 text-xs font-medium"
-                        >
-                          Series · #{story.seriesOrder}
-                        </Badge>
-                      )}
-                      <h2 className="font-serif text-lg font-semibold text-foreground mb-1 group-hover:text-primary transition-colors leading-snug">
-                        {story.title}
-                      </h2>
-                      <p className="text-xs text-muted-foreground mb-3">
-                        by{" "}
-                        <span className="font-medium text-foreground/80">
-                          {story.author}
-                        </span>
-                        <span className="mx-1.5">·</span>
-                        <span>{story.readTime} read</span>
-                      </p>
-                      <p className="text-sm text-muted-foreground line-clamp-3 leading-relaxed">
-                        {story.excerpt}
-                      </p>
-                      <div className="flex flex-wrap gap-1.5 mt-4">
-                        {story.tags.map((tag) => (
+                {(isAdmin ? stories : stories.filter((s) => s.isPublic)).map(
+                  (story, idx) => (
+                    <motion.article
+                      key={story.id}
+                      initial={{ opacity: 0, y: 24 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.4, delay: idx * 0.07 }}
+                      className="bg-card rounded-xl border border-border shadow-xs hover:shadow-md hover:border-primary/40 transition-all group flex flex-col cursor-pointer"
+                      onClick={() => setSelectedStory(story)}
+                      data-ocid={`stories.item.${idx + 1}`}
+                    >
+                      {/* Card top */}
+                      <div className="relative p-5 flex-1">
+                        {story.series && (
                           <Badge
-                            key={tag}
-                            variant="outline"
-                            className="text-xs px-2 py-0.5 border-primary/30 text-primary/80"
+                            variant="secondary"
+                            className="mb-3 text-xs font-medium"
                           >
-                            {tag}
+                            Series · #{story.seriesOrder}
                           </Badge>
-                        ))}
+                        )}
+                        <h2 className="font-serif text-lg font-semibold text-foreground mb-1 group-hover:text-primary transition-colors leading-snug">
+                          {story.title}
+                        </h2>
+                        <p className="text-xs text-muted-foreground mb-3">
+                          by{" "}
+                          <span className="font-medium text-foreground/80">
+                            {story.author}
+                          </span>
+                          <span className="mx-1.5">·</span>
+                          <span>{story.readTime} read</span>
+                        </p>
+                        <p className="text-sm text-muted-foreground line-clamp-3 leading-relaxed">
+                          {story.excerpt}
+                        </p>
+                        <div className="flex flex-wrap gap-1.5 mt-4">
+                          {story.tags.map((tag) => (
+                            <Badge
+                              key={tag}
+                              variant="outline"
+                              className="text-xs px-2 py-0.5 border-primary/30 text-primary/80"
+                            >
+                              {tag}
+                            </Badge>
+                          ))}
+                        </div>
+                        {isAdmin && (
+                          <div className="absolute top-3 right-3 flex gap-1">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleTogglePublic(story.id);
+                              }}
+                              className={`p-1 rounded transition-colors ${story.isPublic ? "text-muted-foreground hover:text-amber-500 hover:bg-amber-50" : "text-muted-foreground hover:text-green-600 hover:bg-green-50"}`}
+                              aria-label={
+                                story.isPublic ? "Make Draft" : "Make Public"
+                              }
+                              title={
+                                story.isPublic ? "Make Draft" : "Make Public"
+                              }
+                            >
+                              {story.isPublic ? (
+                                <Eye className="w-4 h-4" />
+                              ) : (
+                                <Globe className="w-4 h-4" />
+                              )}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteStory(story.id);
+                              }}
+                              className="p-1 rounded text-muted-foreground hover:text-red-500 hover:bg-red-50 transition-colors"
+                              aria-label="Delete story"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        )}
+                        {isAdmin && !story.isPublic && (
+                          <Badge
+                            variant="secondary"
+                            className="absolute bottom-3 right-3 text-xs bg-amber-100 text-amber-700 border-amber-200"
+                          >
+                            Draft
+                          </Badge>
+                        )}
                       </div>
-                      {isAdmin && (
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteStory(story.id)}
-                          className="absolute top-3 right-3 p-1 rounded text-muted-foreground hover:text-red-500 hover:bg-red-50 transition-colors"
-                          aria-label="Delete story"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
 
-                    {/* Card footer */}
-                    <div className="border-t border-border px-5 py-3 flex items-center justify-between">
-                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                          <TrendingUp className="w-3.5 h-3.5" />
-                          {story.reads.toLocaleString()}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <MessageSquare className="w-3.5 h-3.5" />
-                          {story.comments + getTotalCommentCount(story.id)}
-                        </span>
+                      {/* Card footer */}
+                      <div className="border-t border-border px-5 py-3 flex items-center justify-between">
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <TrendingUp className="w-3.5 h-3.5" />
+                            {story.reads.toLocaleString()}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <MessageSquare className="w-3.5 h-3.5" />
+                            {story.comments + getTotalCommentCount(story.id)}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => toggleHeart(story.id)}
+                            className={`p-1.5 rounded-md transition-colors ${
+                              hearts.has(story.id)
+                                ? "text-red-500"
+                                : "text-muted-foreground hover:text-red-400"
+                            }`}
+                            data-ocid={`stories.toggle.${idx + 1}`}
+                            aria-label="Heart story"
+                          >
+                            <Heart
+                              className={`w-4 h-4 ${hearts.has(story.id) ? "fill-current" : ""}`}
+                            />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => toggleBookmark(story.id)}
+                            className={`p-1.5 rounded-md transition-colors ${
+                              bookmarks.has(story.id)
+                                ? "text-primary"
+                                : "text-muted-foreground hover:text-primary"
+                            }`}
+                            data-ocid={`stories.secondary_button.${idx + 1}`}
+                            aria-label="Bookmark story"
+                          >
+                            <Bookmark
+                              className={`w-4 h-4 ${bookmarks.has(story.id) ? "fill-current" : ""}`}
+                            />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShowCommentsModal(story.id)}
+                            className="p-1.5 rounded-md text-muted-foreground hover:text-primary transition-colors relative"
+                            aria-label="Comments"
+                            data-ocid={`comments.open_modal_button.${idx + 1}`}
+                          >
+                            <MessageSquare className="w-4 h-4" />
+                            {getTotalCommentCount(story.id) > 0 && (
+                              <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-primary text-primary-foreground text-[9px] font-bold rounded-full flex items-center justify-center leading-none">
+                                {getTotalCommentCount(story.id)}
+                              </span>
+                            )}
+                          </button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => toggleHeart(story.id)}
-                          className={`p-1.5 rounded-md transition-colors ${
-                            hearts.has(story.id)
-                              ? "text-red-500"
-                              : "text-muted-foreground hover:text-red-400"
-                          }`}
-                          data-ocid={`stories.toggle.${idx + 1}`}
-                          aria-label="Heart story"
-                        >
-                          <Heart
-                            className={`w-4 h-4 ${hearts.has(story.id) ? "fill-current" : ""}`}
-                          />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => toggleBookmark(story.id)}
-                          className={`p-1.5 rounded-md transition-colors ${
-                            bookmarks.has(story.id)
-                              ? "text-primary"
-                              : "text-muted-foreground hover:text-primary"
-                          }`}
-                          data-ocid={`stories.secondary_button.${idx + 1}`}
-                          aria-label="Bookmark story"
-                        >
-                          <Bookmark
-                            className={`w-4 h-4 ${bookmarks.has(story.id) ? "fill-current" : ""}`}
-                          />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setShowCommentsModal(story.id)}
-                          className="p-1.5 rounded-md text-muted-foreground hover:text-primary transition-colors relative"
-                          aria-label="Comments"
-                          data-ocid={`comments.open_modal_button.${idx + 1}`}
-                        >
-                          <MessageSquare className="w-4 h-4" />
-                          {getTotalCommentCount(story.id) > 0 && (
-                            <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-primary text-primary-foreground text-[9px] font-bold rounded-full flex items-center justify-center leading-none">
-                              {getTotalCommentCount(story.id)}
-                            </span>
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  </motion.article>
-                ))}
+                    </motion.article>
+                  ),
+                )}
               </div>
             )}
 
