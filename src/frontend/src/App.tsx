@@ -75,6 +75,30 @@ type CommenterAccount = {
 
 const ADMIN_PASSWORD = "3275";
 
+const SEED_STORIES: Story[] = [
+  {
+    id: 1,
+    title: "A Day of Being a Dog",
+    author: "Lillian Bean",
+    genre: "Fantasy",
+    excerpt: "This is a short story!",
+    body: `"Zoey," my kid called. I came out of habit, my kid called so I came. My owners like to say that I'm a smart pretty girl, and they're right.
+
+"Good girl!" She said when I sat aromatically and got pets. That's when Tucker came, this little shelti got on my nerves a lot and since he was a small breed he got more attention than I do, even though my kid tries to give both of us equal attention.
+
+"Tucker, what are you doing," my kid said in a high pitched loving tone that she uses on all of us. She knows that I want to go outside or eat when I whine at the food bowls or sit by the door and whine. She knows I love tennis balls, and Tucker tries to steal them from me so I chase him down when he does.
+
+When she called Zoey's name I just laid there waiting for food or to go outside on my chain, while Tucker goes on his leash. I act lazy in the house so I can "conserve" my energy to chase and play with Tucker while he runs circles around me and if he nips at me I will bark at him while Zoey pins him to the ground barks once and leaves for her ball. I will only get up to move out of the way, go onto the bed or couch, for water, to go outside, and for my favorite thing in the whole world, food! When my name is called I make them wait so they actually call it 4 times before I get up. They think they're hyping me up, they're not. But when I get pets I love it!
+
+'Just give me love' I bark, 'I'm small I want attention. I want you to carry me but put me down the second my feet aren't touching the ground. I wanna snuggle, but you have to call me up.' I make them do everything for me if I want them to stop walking and pet me I go between their legs and stopped in front of them looking up at them, most of the time they stop but they don't bend down and pet me! I love stealing Zoey's ball and love barking and annoying the humans. I'm so cute and tiny my nick name is T.D. (Tiny Dog). While Zoey's is "Zo-Zo puppy" and Turbo's is "Turdo" or "Fat-fat".`,
+    readTime: "5-10 minutes",
+    comments: 0,
+    hearts: 0,
+    reads: 0,
+    tags: ["fantasy", "dogs", "short story"],
+  },
+];
+
 export default function App() {
   const { isDark, toggleTheme } = useTheme();
   const [searchQuery, setSearchQuery] = useState("");
@@ -148,7 +172,13 @@ export default function App() {
   useEffect(() => {
     try {
       const storedStories = localStorage.getItem("sr_stories");
-      if (storedStories) setStories(JSON.parse(storedStories));
+      const existing: Story[] = storedStories ? JSON.parse(storedStories) : [];
+      const existingIds = new Set(existing.map((s: Story) => s.id));
+      const merged = [
+        ...SEED_STORIES.filter((s) => !existingIds.has(s.id)),
+        ...existing,
+      ];
+      setStories(merged);
     } catch {
       // ignore
     }
