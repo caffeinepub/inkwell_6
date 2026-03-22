@@ -76,7 +76,7 @@ type CommenterAccount = {
   password: string;
 };
 
-const ADMIN_PASSWORD = "3275";
+const ADMIN_PASSWORD = "Lilly.R.Bean!";
 
 const SEED_STORIES: Story[] = [
   {
