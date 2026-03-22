@@ -43,6 +43,7 @@ type Story = {
   author: string;
   genre: string;
   excerpt: string;
+  body: string;
   readTime: string;
   comments: number;
   hearts: number;
@@ -93,6 +94,7 @@ export default function App() {
     author: "",
     genre: "",
     excerpt: "",
+    body: "",
     readTime: "",
     tags: "",
   });
@@ -101,6 +103,7 @@ export default function App() {
   const [privateComments, setPrivateComments] = useState<
     Record<number, PrivateComment[]>
   >({});
+  const [selectedStory, setSelectedStory] = useState<Story | null>(null);
   const [showCommentsModal, setShowCommentsModal] = useState<number | null>(
     null,
   );
@@ -144,6 +147,12 @@ export default function App() {
   // Load accounts + session from localStorage on mount
   useEffect(() => {
     try {
+      const storedStories = localStorage.getItem("sr_stories");
+      if (storedStories) setStories(JSON.parse(storedStories));
+    } catch {
+      // ignore
+    }
+    try {
       const stored = localStorage.getItem("commenter_accounts");
       if (stored) setCommenterAccounts(JSON.parse(stored));
     } catch {
@@ -158,6 +167,10 @@ export default function App() {
       // ignore
     }
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem("sr_stories", JSON.stringify(stories));
+  }, [stories]);
 
   const openCommenterAuth = (mode: "signin" | "signup" = "signin") => {
     setCommenterAuthMode(mode);
@@ -286,13 +299,19 @@ export default function App() {
   };
 
   const handleAddStory = () => {
-    if (!newStory.title.trim() || !newStory.excerpt.trim()) return;
+    if (
+      !newStory.title.trim() ||
+      !newStory.excerpt.trim() ||
+      !newStory.body.trim()
+    )
+      return;
     const story: Story = {
       id: Date.now(),
       title: newStory.title.trim(),
       author: newStory.author.trim() || "Admin",
       genre: newStory.genre.trim() || "General",
       excerpt: newStory.excerpt.trim(),
+      body: newStory.body.trim(),
       readTime: newStory.readTime.trim() || "5 min",
       comments: 0,
       hearts: 0,
@@ -308,6 +327,7 @@ export default function App() {
       author: "",
       genre: "",
       excerpt: "",
+      body: "",
       readTime: "",
       tags: "",
     });
@@ -1060,6 +1080,19 @@ export default function App() {
                 </div>
                 <div>
                   <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    Full Story *
+                  </span>
+                  <textarea
+                    placeholder="Paste or write your full story here..."
+                    value={newStory.body}
+                    onChange={(e) =>
+                      setNewStory((p) => ({ ...p, body: e.target.value }))
+                    }
+                    className="mt-1 w-full border border-input rounded-md px-3 py-2 text-sm resize-none bg-background text-foreground h-48 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                </div>
+                <div>
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                     Tags (comma-separated)
                   </span>
                   <Input
@@ -1076,7 +1109,11 @@ export default function App() {
                 <Button
                   className="flex-1"
                   onClick={handleAddStory}
-                  disabled={!newStory.title.trim() || !newStory.excerpt.trim()}
+                  disabled={
+                    !newStory.title.trim() ||
+                    !newStory.excerpt.trim() ||
+                    !newStory.body.trim()
+                  }
                 >
                   Publish Story
                 </Button>
@@ -1087,6 +1124,122 @@ export default function App() {
                 >
                   Cancel
                 </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ───────── STORY DETAIL MODAL ───────── */}
+      <AnimatePresence>
+        {selectedStory && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 px-4 py-8 overflow-y-auto"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setSelectedStory(null);
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.97, opacity: 0, y: 16 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.97, opacity: 0, y: 16 }}
+              className="bg-card rounded-xl shadow-2xl p-8 w-full max-w-2xl my-auto"
+            >
+              <div className="flex items-start justify-between mb-2">
+                <div className="flex-1 pr-4">
+                  {selectedStory.series && (
+                    <Badge variant="secondary" className="mb-2 text-xs">
+                      Series · #{selectedStory.seriesOrder}
+                    </Badge>
+                  )}
+                  <h1 className="font-serif text-2xl font-bold text-foreground leading-snug mb-1">
+                    {selectedStory.title}
+                  </h1>
+                  <p className="text-sm text-muted-foreground">
+                    by{" "}
+                    <span className="font-medium text-foreground/80">
+                      {selectedStory.author}
+                    </span>
+                    <span className="mx-1.5">·</span>
+                    <span>{selectedStory.readTime} read</span>
+                    <span className="mx-1.5">·</span>
+                    <span>{selectedStory.genre}</span>
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedStory(null)}
+                  className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors flex-shrink-0"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="flex flex-wrap gap-1.5 mt-3 mb-6">
+                {selectedStory.tags.map((tag) => (
+                  <Badge
+                    key={tag}
+                    variant="outline"
+                    className="text-xs px-2 py-0.5 border-primary/30 text-primary/80"
+                  >
+                    {tag}
+                  </Badge>
+                ))}
+              </div>
+
+              <div className="prose prose-sm max-w-none dark:prose-invert">
+                {selectedStory.body ? (
+                  <div className="whitespace-pre-wrap text-foreground leading-relaxed text-base">
+                    {selectedStory.body}
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground italic">
+                    {selectedStory.excerpt}
+                  </p>
+                )}
+              </div>
+
+              <div className="mt-8 pt-5 border-t border-border flex items-center justify-between">
+                <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                  <span className="flex items-center gap-1.5">
+                    <TrendingUp className="w-4 h-4" />
+                    {selectedStory.reads.toLocaleString()} reads
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <MessageSquare className="w-4 h-4" />
+                    {selectedStory.comments +
+                      getTotalCommentCount(selectedStory.id)}{" "}
+                    comments
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleHeart(selectedStory.id)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors ${
+                      hearts.has(selectedStory.id)
+                        ? "text-red-500 bg-red-50 dark:bg-red-950/30"
+                        : "text-muted-foreground hover:text-red-400 hover:bg-muted"
+                    }`}
+                  >
+                    <Heart className="w-4 h-4" />
+                    {hearts.has(selectedStory.id) ? "Liked" : "Like"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedStory(null);
+                      setShowCommentsModal(selectedStory.id);
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                  >
+                    <MessageSquare className="w-4 h-4" />
+                    Comment
+                  </button>
+                </div>
               </div>
             </motion.div>
           </motion.div>
@@ -1840,7 +1993,8 @@ export default function App() {
                     initial={{ opacity: 0, y: 24 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.4, delay: idx * 0.07 }}
-                    className="bg-card rounded-xl border border-border shadow-xs hover:shadow-md hover:border-primary/40 transition-all group flex flex-col"
+                    className="bg-card rounded-xl border border-border shadow-xs hover:shadow-md hover:border-primary/40 transition-all group flex flex-col cursor-pointer"
+                    onClick={() => setSelectedStory(story)}
                     data-ocid={`stories.item.${idx + 1}`}
                   >
                     {/* Card top */}
