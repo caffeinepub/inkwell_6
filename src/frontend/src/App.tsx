@@ -16,6 +16,7 @@ import {
   MessageSquare,
   Moon,
   PenLine,
+  Pencil,
   Plus,
   Search,
   Star,
@@ -116,6 +117,7 @@ export default function App() {
   const [passwordInput, setPasswordInput] = useState("");
   const [signInError, setSignInError] = useState("");
   const [showAddStory, setShowAddStory] = useState(false);
+  const [editingStory, setEditingStory] = useState<Story | null>(null);
   const [newStory, setNewStory] = useState({
     title: "",
     author: "",
@@ -339,24 +341,36 @@ export default function App() {
       !newStory.body.trim()
     )
       return;
-    const story: Story = {
-      id: Date.now(),
+    const updatedFields = {
       title: newStory.title.trim(),
       author: newStory.author.trim() || "Admin",
       genre: newStory.genre.trim() || "General",
       excerpt: newStory.excerpt.trim(),
       body: newStory.body.trim(),
       readTime: newStory.readTime.trim() || "5 min",
-      comments: 0,
-      hearts: 0,
-      reads: 0,
       tags: newStory.tags
         .split(",")
         .map((t) => t.trim())
         .filter(Boolean),
       isPublic: makePublic,
     };
-    setStories((prev) => [story, ...prev]);
+    if (editingStory) {
+      setStories((prev) =>
+        prev.map((s) =>
+          s.id === editingStory.id ? { ...s, ...updatedFields } : s,
+        ),
+      );
+      setEditingStory(null);
+    } else {
+      const story: Story = {
+        id: Date.now(),
+        comments: 0,
+        hearts: 0,
+        reads: 0,
+        ...updatedFields,
+      };
+      setStories((prev) => [story, ...prev]);
+    }
     setNewStory({
       title: "",
       author: "",
@@ -1050,7 +1064,8 @@ export default function App() {
               className="bg-card rounded-xl shadow-xl p-6 w-full max-w-lg my-auto"
             >
               <h2 className="font-serif text-xl font-semibold mb-4 flex items-center gap-2">
-                <PenLine className="w-5 h-5 text-primary" /> Add New Story
+                <PenLine className="w-5 h-5 text-primary" />{" "}
+                {editingStory ? "Edit Story" : "Add New Story"}
               </h2>
               <div className="space-y-3">
                 <div>
@@ -1176,7 +1191,10 @@ export default function App() {
                 <Button
                   variant="ghost"
                   className="flex-1"
-                  onClick={() => setShowAddStory(false)}
+                  onClick={() => {
+                    setShowAddStory(false);
+                    setEditingStory(null);
+                  }}
                   data-ocid="story.cancel_button"
                 >
                   Cancel
@@ -1298,6 +1316,34 @@ export default function App() {
                   </button>
                 </div>
               </div>
+              {isAdmin && (
+                <div className="mt-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const s = selectedStory;
+                      setSelectedStory(null);
+                      setEditingStory(s);
+                      setNewStory({
+                        title: s.title,
+                        author: s.author,
+                        genre: s.genre,
+                        excerpt: s.excerpt,
+                        body: s.body || "",
+                        readTime: s.readTime,
+                        tags: s.tags.join(", "),
+                        makePublic: s.isPublic,
+                      });
+                      setShowAddStory(true);
+                    }}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                    data-ocid="story.edit_button"
+                  >
+                    <Pencil className="w-4 h-4" />
+                    Edit Story
+                  </button>
+                </div>
+              )}
             </motion.div>
           </motion.div>
         )}
