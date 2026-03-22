@@ -1,29 +1,27 @@
-# Story Reviews - Version 6
+# Story Reviews – Banned List Management
 
 ## Current State
-The platform has admin login (password: 3275), guest browsing, public comments (commenter enters a name manually), and private comments. There is no account system for regular commenters.
+The app has commenter accounts (V6). Admin can delete public comments. There is no ban/unban system implemented yet -- the admin panel does not have a list of banned users or controls to ban/unban commenters.
 
 ## Requested Changes (Diff)
 
 ### Add
-- Commenter account registration: username + password signup
-- Commenter login: sign in with username + password to access commenting
-- When signed in as a commenter, their username is used automatically for public and private comments (no need to type name)
-- Sign out button for logged-in commenters
-- A "Sign In to Comment" prompt shown to guests when they try to comment
+- A `bannedUsers` state (persisted in localStorage) storing a set/array of banned usernames.
+- Admin panel section: "Banned Users" -- shows the current banned list with an unban button next to each name.
+- On each public/private comment, admin sees a "Ban" button next to the commenter's name (if not already banned).
+- Banned users can still log in but cannot post comments (public or private); they see a message that they are banned.
+- Admin can also add a username to the ban list manually (text input + "Ban" button) in the admin panel.
 
 ### Modify
-- Public comment form: if commenter is logged in, auto-fill their name; if not, show sign-in prompt
-- Private comment form: same as above
-- Header: show logged-in commenter's username and sign-out button
+- Comment submission logic: check if commenterUser is in bannedUsers before allowing post.
+- Admin panel UI: add a new "Banned Users" section.
 
 ### Remove
-- Manual name entry for comments when a commenter is logged in
+- Nothing removed.
 
 ## Implementation Plan
-1. Add commenter accounts to the backend (register, login, getCommenterByUsername)
-2. Store commenter session in frontend state (username, isLoggedIn)
-3. Add Sign Up / Sign In modal for commenters
-4. Show commenter username in header when logged in + sign out button
-5. Auto-populate commenter name in public and private comment forms when signed in
-6. Show "Please sign in to comment" message to guests trying to comment
+1. Add `bannedUsers` state (string array) with localStorage persistence.
+2. Add ban/unban helper functions.
+3. In public and private comment submission handlers, block banned users.
+4. On each comment rendered (admin view), show a Ban button if commenter is not banned.
+5. In admin panel, add Banned Users section: list banned users with Unban buttons + manual add-by-username input.

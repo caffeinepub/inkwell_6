@@ -6,6 +6,8 @@ import {
   BookOpen,
   Bookmark,
   Clock,
+  EyeOff,
+  Globe,
   Heart,
   Lock,
   LogIn,
@@ -20,6 +22,8 @@ import {
   Trash2,
   TrendingUp,
   User,
+  UserCheck,
+  UserX,
   X,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
@@ -127,6 +131,16 @@ export default function App() {
   const [commenterPassword, setCommenterPassword] = useState("");
   const [commenterAuthError, setCommenterAuthError] = useState("");
 
+  // Banned users state
+  const [bannedUsers, setBannedUsers] = useState<string[]>([]);
+  const [manualBanInput, setManualBanInput] = useState("");
+
+  // Site open/close state
+  const [siteOpen, setSiteOpen] = useState<boolean>(() => {
+    const stored = localStorage.getItem("site_open");
+    return stored === null ? true : stored === "true";
+  });
+
   // Load accounts + session from localStorage on mount
   useEffect(() => {
     try {
@@ -137,6 +151,12 @@ export default function App() {
     }
     const session = localStorage.getItem("commenter_session");
     if (session) setCommenterUser(session);
+    try {
+      const banned = localStorage.getItem("banned_users");
+      if (banned) setBannedUsers(JSON.parse(banned));
+    } catch {
+      // ignore
+    }
   }, []);
 
   const openCommenterAuth = (mode: "signin" | "signup" = "signin") => {
@@ -197,6 +217,31 @@ export default function App() {
   const handleCommenterSignOut = () => {
     localStorage.removeItem("commenter_session");
     setCommenterUser(null);
+  };
+
+  const banUser = (username: string) => {
+    setBannedUsers((prev) => {
+      if (prev.includes(username)) return prev;
+      const updated = [...prev, username];
+      localStorage.setItem("banned_users", JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const unbanUser = (username: string) => {
+    setBannedUsers((prev) => {
+      const updated = prev.filter((u) => u !== username);
+      localStorage.setItem("banned_users", JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const toggleSiteOpen = () => {
+    setSiteOpen((prev) => {
+      const next = !prev;
+      localStorage.setItem("site_open", String(next));
+      return next;
+    });
   };
 
   const filteredSuggestions = stories
@@ -275,6 +320,7 @@ export default function App() {
 
   const handleSubmitPrivateComment = (storyId: number) => {
     if (!privateCommentName.trim() || !privateCommentMessage.trim()) return;
+    if (bannedUsers.includes(privateCommentName.trim())) return;
     const comment: PrivateComment = {
       id: Date.now(),
       authorName: privateCommentName.trim(),
@@ -304,6 +350,7 @@ export default function App() {
   const handleSubmitPublicComment = (storyId: number) => {
     const name = commenterUser ?? publicCommentName.trim();
     if (!name || !publicCommentMessage.trim()) return;
+    if (bannedUsers.includes(name)) return;
     const comment: PublicComment = {
       id: Date.now(),
       authorName: name,
@@ -1152,20 +1199,47 @@ export default function App() {
                                 {comment.timestamp}
                               </span>
                               {isAdmin && (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    handleDeletePublicComment(
-                                      showCommentsModal!,
-                                      comment.id,
-                                    )
-                                  }
-                                  className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-50 hover:text-red-500 text-muted-foreground transition-all"
-                                  aria-label="Delete comment"
-                                  data-ocid={`comments.delete_button.${idx + 1}`}
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
+                                <>
+                                  {bannedUsers.includes(comment.authorName) ? (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        unbanUser(comment.authorName)
+                                      }
+                                      className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-green-50 hover:text-green-600 text-muted-foreground transition-all"
+                                      aria-label="Unban user"
+                                      title={`Unban ${comment.authorName}`}
+                                    >
+                                      <UserCheck className="w-3.5 h-3.5" />
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        banUser(comment.authorName)
+                                      }
+                                      className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-orange-50 hover:text-orange-500 text-muted-foreground transition-all"
+                                      aria-label="Ban user"
+                                      title={`Ban ${comment.authorName}`}
+                                    >
+                                      <UserX className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleDeletePublicComment(
+                                        showCommentsModal!,
+                                        comment.id,
+                                      )
+                                    }
+                                    className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-50 hover:text-red-500 text-muted-foreground transition-all"
+                                    aria-label="Delete comment"
+                                    data-ocid={`comments.delete_button.${idx + 1}`}
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </>
                               )}
                             </div>
                           </div>
@@ -1190,25 +1264,37 @@ export default function App() {
                             </span>
                           </span>
                         </div>
-                        <textarea
-                          placeholder="Write a comment..."
-                          value={publicCommentMessage}
-                          onChange={(e) =>
-                            setPublicCommentMessage(e.target.value)
-                          }
-                          className="w-full border border-input rounded-md px-3 py-2 text-sm resize-none bg-background text-foreground h-20 focus:outline-none focus:ring-2 focus:ring-primary/30"
-                          data-ocid="comments.textarea"
-                        />
-                        <Button
-                          className="w-full"
-                          onClick={() =>
-                            handleSubmitPublicComment(showCommentsModal!)
-                          }
-                          disabled={!publicCommentMessage.trim()}
-                          data-ocid="comments.submit_button"
-                        >
-                          Post Comment
-                        </Button>
+                        {bannedUsers.includes(commenterUser) ? (
+                          <div
+                            className="flex items-center gap-2 rounded-lg border border-orange-200 bg-orange-50/70 px-4 py-3 text-sm text-orange-700"
+                            data-ocid="comments.error_state"
+                          >
+                            <UserX className="w-4 h-4 flex-shrink-0" />
+                            You are banned from commenting.
+                          </div>
+                        ) : (
+                          <>
+                            <textarea
+                              placeholder="Write a comment..."
+                              value={publicCommentMessage}
+                              onChange={(e) =>
+                                setPublicCommentMessage(e.target.value)
+                              }
+                              className="w-full border border-input rounded-md px-3 py-2 text-sm resize-none bg-background text-foreground h-20 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                              data-ocid="comments.textarea"
+                            />
+                            <Button
+                              className="w-full"
+                              onClick={() =>
+                                handleSubmitPublicComment(showCommentsModal!)
+                              }
+                              disabled={!publicCommentMessage.trim()}
+                              data-ocid="comments.submit_button"
+                            >
+                              Post Comment
+                            </Button>
+                          </>
+                        )}
                       </>
                     ) : (
                       <>
@@ -1302,9 +1388,34 @@ export default function App() {
                             data-ocid={`comments.item.${idx + 1}`}
                           >
                             <div className="flex items-center justify-between mb-2">
-                              <span className="text-sm font-semibold text-foreground">
-                                {comment.authorName}
-                              </span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-semibold text-foreground">
+                                  {comment.authorName}
+                                </span>
+                                {bannedUsers.includes(comment.authorName) ? (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      unbanUser(comment.authorName)
+                                    }
+                                    className="flex items-center gap-1 text-xs text-green-600 hover:text-green-700 bg-green-50 hover:bg-green-100 px-1.5 py-0.5 rounded transition-colors"
+                                    title={`Unban ${comment.authorName}`}
+                                  >
+                                    <UserCheck className="w-3 h-3" />
+                                    Unban
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => banUser(comment.authorName)}
+                                    className="flex items-center gap-1 text-xs text-orange-500 hover:text-orange-600 bg-orange-50 hover:bg-orange-100 px-1.5 py-0.5 rounded transition-colors"
+                                    title={`Ban ${comment.authorName}`}
+                                  >
+                                    <UserX className="w-3 h-3" />
+                                    Ban
+                                  </button>
+                                )}
+                              </div>
                               <span className="text-xs text-muted-foreground">
                                 {comment.timestamp}
                               </span>
@@ -1410,57 +1521,77 @@ export default function App() {
                                 data-ocid="comments.input"
                               />
                             )}
-                            <textarea
-                              placeholder="Your private comment..."
-                              value={privateCommentMessage}
-                              onChange={(e) =>
-                                setPrivateCommentMessage(e.target.value)
-                              }
-                              className="w-full border border-input rounded-md px-3 py-2 text-sm resize-none bg-background text-foreground h-24 focus:outline-none focus:ring-2 focus:ring-primary/30"
-                              data-ocid="comments.textarea"
-                            />
-                            <p className="text-xs text-muted-foreground flex items-center gap-1">
-                              <Lock className="w-3 h-3" />
-                              Your comment is private and only visible to you
-                              and the admin.
-                            </p>
-                            <Button
-                              className="w-full"
-                              onClick={() => {
-                                if (commenterUser) {
-                                  // logged-in commenter: use their username
-                                  if (!privateCommentMessage.trim()) return;
-                                  const comment: PrivateComment = {
-                                    id: Date.now(),
-                                    authorName: commenterUser,
-                                    message: privateCommentMessage.trim(),
-                                    timestamp: new Date().toLocaleString(),
-                                  };
-                                  setPrivateComments((prev) => ({
-                                    ...prev,
-                                    [showCommentsModal!]: [
-                                      ...(prev[showCommentsModal!] ?? []),
-                                      comment,
-                                    ],
-                                  }));
-                                  setViewingAsName(commenterUser);
-                                  setPrivateCommentMessage("");
-                                } else {
-                                  handleSubmitPrivateComment(
-                                    showCommentsModal!,
-                                  );
-                                }
-                              }}
-                              disabled={
-                                commenterUser
-                                  ? !privateCommentMessage.trim()
-                                  : !privateCommentName.trim() ||
-                                    !privateCommentMessage.trim()
-                              }
-                              data-ocid="comments.submit_button"
-                            >
-                              Submit Private Comment
-                            </Button>
+                            {(
+                              commenterUser
+                                ? bannedUsers.includes(commenterUser)
+                                : bannedUsers.includes(
+                                    privateCommentName.trim(),
+                                  )
+                            ) ? (
+                              <div
+                                className="flex items-center gap-2 rounded-lg border border-orange-200 bg-orange-50/70 px-4 py-3 text-sm text-orange-700"
+                                data-ocid="comments.error_state"
+                              >
+                                <UserX className="w-4 h-4 flex-shrink-0" />
+                                You are banned from commenting.
+                              </div>
+                            ) : (
+                              <>
+                                <textarea
+                                  placeholder="Your private comment..."
+                                  value={privateCommentMessage}
+                                  onChange={(e) =>
+                                    setPrivateCommentMessage(e.target.value)
+                                  }
+                                  className="w-full border border-input rounded-md px-3 py-2 text-sm resize-none bg-background text-foreground h-24 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                                  data-ocid="comments.textarea"
+                                />
+                                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                                  <Lock className="w-3 h-3" />
+                                  Your comment is private and only visible to
+                                  you and the admin.
+                                </p>
+                                <Button
+                                  className="w-full"
+                                  onClick={() => {
+                                    if (commenterUser) {
+                                      // logged-in commenter: use their username
+                                      if (!privateCommentMessage.trim()) return;
+                                      if (bannedUsers.includes(commenterUser))
+                                        return;
+                                      const comment: PrivateComment = {
+                                        id: Date.now(),
+                                        authorName: commenterUser,
+                                        message: privateCommentMessage.trim(),
+                                        timestamp: new Date().toLocaleString(),
+                                      };
+                                      setPrivateComments((prev) => ({
+                                        ...prev,
+                                        [showCommentsModal!]: [
+                                          ...(prev[showCommentsModal!] ?? []),
+                                          comment,
+                                        ],
+                                      }));
+                                      setViewingAsName(commenterUser);
+                                      setPrivateCommentMessage("");
+                                    } else {
+                                      handleSubmitPrivateComment(
+                                        showCommentsModal!,
+                                      );
+                                    }
+                                  }}
+                                  disabled={
+                                    commenterUser
+                                      ? !privateCommentMessage.trim()
+                                      : !privateCommentName.trim() ||
+                                        !privateCommentMessage.trim()
+                                  }
+                                  data-ocid="comments.submit_button"
+                                >
+                                  Submit Private Comment
+                                </Button>
+                              </>
+                            )}
                           </div>
 
                           {/* View existing comments */}
@@ -1634,197 +1765,382 @@ export default function App() {
 
       {/* ───────── SORT TABS ───────── */}
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex items-center gap-2 mb-8 overflow-x-auto pb-1">
-          {SORT_OPTIONS.map(({ label, icon: Icon }) => (
-            <button
-              type="button"
-              key={label}
-              onClick={() => setActiveSort(label)}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all border ${
-                activeSort === label
-                  ? "bg-primary text-primary-foreground border-primary shadow-glow"
-                  : "bg-card border-border text-muted-foreground hover:border-primary/60 hover:text-foreground"
-              }`}
-              data-ocid="stories.filter.tab"
-            >
-              <Icon className="w-3.5 h-3.5" />
-              {label}
-            </button>
-          ))}
-        </div>
-
-        {/* ───────── STORY GRID ───────── */}
-        {stories.length === 0 ? (
+        {/* ───────── SITE CLOSED MESSAGE ───────── */}
+        {!siteOpen && !isAdmin ? (
           <motion.div
-            initial={{ opacity: 0, y: 12 }}
+            initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex flex-col items-center justify-center py-24 text-center"
-            data-ocid="stories.empty_state"
+            className="flex flex-col items-center justify-center py-32 text-center"
+            data-ocid="site.closed_state"
           >
-            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-              <BookOpen className="w-8 h-8 text-primary/60" />
+            <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center mb-6 shadow-inner">
+              <EyeOff className="w-10 h-10 text-muted-foreground/50" />
             </div>
-            <h3 className="font-serif text-xl font-semibold text-foreground mb-2">
-              No stories yet
-            </h3>
-            <p className="text-muted-foreground text-sm max-w-xs">
-              {isAdmin
-                ? 'Click "Add Story" in the header to publish your first story.'
-                : "Check back soon -- new stories are on the way."}
+            <h2 className="font-serif text-2xl font-semibold text-foreground mb-3">
+              Site Currently Unavailable
+            </h2>
+            <p className="text-muted-foreground max-w-sm">
+              This site is currently private. Please check back later.
             </p>
-            {isAdmin && (
-              <Button className="mt-5" onClick={() => setShowAddStory(true)}>
-                <Plus className="w-4 h-4 mr-1.5" /> Add Your First Story
-              </Button>
-            )}
           </motion.div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {stories.map((story, idx) => (
-              <motion.article
-                key={story.id}
-                initial={{ opacity: 0, y: 24 }}
+          <>
+            <div className="flex items-center gap-2 mb-8 overflow-x-auto pb-1">
+              {SORT_OPTIONS.map(({ label, icon: Icon }) => (
+                <button
+                  type="button"
+                  key={label}
+                  onClick={() => setActiveSort(label)}
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all border ${
+                    activeSort === label
+                      ? "bg-primary text-primary-foreground border-primary shadow-glow"
+                      : "bg-card border-border text-muted-foreground hover:border-primary/60 hover:text-foreground"
+                  }`}
+                  data-ocid="stories.filter.tab"
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {/* ───────── STORY GRID ───────── */}
+            {stories.length === 0 ? (
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: idx * 0.07 }}
-                className="bg-card rounded-xl border border-border shadow-xs hover:shadow-md hover:border-primary/40 transition-all group flex flex-col"
-                data-ocid={`stories.item.${idx + 1}`}
+                className="flex flex-col items-center justify-center py-24 text-center"
+                data-ocid="stories.empty_state"
               >
-                {/* Card top */}
-                <div className="relative p-5 flex-1">
-                  {story.series && (
-                    <Badge
-                      variant="secondary"
-                      className="mb-3 text-xs font-medium"
+                <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                  <BookOpen className="w-8 h-8 text-primary/60" />
+                </div>
+                <h3 className="font-serif text-xl font-semibold text-foreground mb-2">
+                  No stories yet
+                </h3>
+                <p className="text-muted-foreground text-sm max-w-xs">
+                  {isAdmin
+                    ? 'Click "Add Story" in the header to publish your first story.'
+                    : "Check back soon -- new stories are on the way."}
+                </p>
+                {isAdmin && (
+                  <Button
+                    className="mt-5"
+                    onClick={() => setShowAddStory(true)}
+                  >
+                    <Plus className="w-4 h-4 mr-1.5" /> Add Your First Story
+                  </Button>
+                )}
+              </motion.div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {stories.map((story, idx) => (
+                  <motion.article
+                    key={story.id}
+                    initial={{ opacity: 0, y: 24 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, delay: idx * 0.07 }}
+                    className="bg-card rounded-xl border border-border shadow-xs hover:shadow-md hover:border-primary/40 transition-all group flex flex-col"
+                    data-ocid={`stories.item.${idx + 1}`}
+                  >
+                    {/* Card top */}
+                    <div className="relative p-5 flex-1">
+                      {story.series && (
+                        <Badge
+                          variant="secondary"
+                          className="mb-3 text-xs font-medium"
+                        >
+                          Series · #{story.seriesOrder}
+                        </Badge>
+                      )}
+                      <h2 className="font-serif text-lg font-semibold text-foreground mb-1 group-hover:text-primary transition-colors leading-snug">
+                        {story.title}
+                      </h2>
+                      <p className="text-xs text-muted-foreground mb-3">
+                        by{" "}
+                        <span className="font-medium text-foreground/80">
+                          {story.author}
+                        </span>
+                        <span className="mx-1.5">·</span>
+                        <span>{story.readTime} read</span>
+                      </p>
+                      <p className="text-sm text-muted-foreground line-clamp-3 leading-relaxed">
+                        {story.excerpt}
+                      </p>
+                      <div className="flex flex-wrap gap-1.5 mt-4">
+                        {story.tags.map((tag) => (
+                          <Badge
+                            key={tag}
+                            variant="outline"
+                            className="text-xs px-2 py-0.5 border-primary/30 text-primary/80"
+                          >
+                            {tag}
+                          </Badge>
+                        ))}
+                      </div>
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteStory(story.id)}
+                          className="absolute top-3 right-3 p-1 rounded text-muted-foreground hover:text-red-500 hover:bg-red-50 transition-colors"
+                          aria-label="Delete story"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Card footer */}
+                    <div className="border-t border-border px-5 py-3 flex items-center justify-between">
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <TrendingUp className="w-3.5 h-3.5" />
+                          {story.reads.toLocaleString()}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <MessageSquare className="w-3.5 h-3.5" />
+                          {story.comments + getTotalCommentCount(story.id)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => toggleHeart(story.id)}
+                          className={`p-1.5 rounded-md transition-colors ${
+                            hearts.has(story.id)
+                              ? "text-red-500"
+                              : "text-muted-foreground hover:text-red-400"
+                          }`}
+                          data-ocid={`stories.toggle.${idx + 1}`}
+                          aria-label="Heart story"
+                        >
+                          <Heart
+                            className={`w-4 h-4 ${hearts.has(story.id) ? "fill-current" : ""}`}
+                          />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => toggleBookmark(story.id)}
+                          className={`p-1.5 rounded-md transition-colors ${
+                            bookmarks.has(story.id)
+                              ? "text-primary"
+                              : "text-muted-foreground hover:text-primary"
+                          }`}
+                          data-ocid={`stories.secondary_button.${idx + 1}`}
+                          aria-label="Bookmark story"
+                        >
+                          <Bookmark
+                            className={`w-4 h-4 ${bookmarks.has(story.id) ? "fill-current" : ""}`}
+                          />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowCommentsModal(story.id)}
+                          className="p-1.5 rounded-md text-muted-foreground hover:text-primary transition-colors relative"
+                          aria-label="Comments"
+                          data-ocid={`comments.open_modal_button.${idx + 1}`}
+                        >
+                          <MessageSquare className="w-4 h-4" />
+                          {getTotalCommentCount(story.id) > 0 && (
+                            <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-primary text-primary-foreground text-[9px] font-bold rounded-full flex items-center justify-center leading-none">
+                              {getTotalCommentCount(story.id)}
+                            </span>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </motion.article>
+                ))}
+              </div>
+            )}
+
+            {/* ───────── ADMIN SITE VISIBILITY TOGGLE ───────── */}
+            {isAdmin && (
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1, duration: 0.4 }}
+                className="mt-8 rounded-xl border border-border bg-card p-6 shadow-xs"
+                data-ocid="admin.visibility.panel"
+              >
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`flex items-center justify-center w-10 h-10 rounded-full ${siteOpen ? "bg-green-100 dark:bg-green-900/30" : "bg-red-100 dark:bg-red-900/30"}`}
                     >
-                      Series · #{story.seriesOrder}
-                    </Badge>
-                  )}
-                  <h2 className="font-serif text-lg font-semibold text-foreground mb-1 group-hover:text-primary transition-colors leading-snug">
-                    {story.title}
-                  </h2>
-                  <p className="text-xs text-muted-foreground mb-3">
-                    by{" "}
-                    <span className="font-medium text-foreground/80">
-                      {story.author}
-                    </span>
-                    <span className="mx-1.5">·</span>
-                    <span>{story.readTime} read</span>
-                  </p>
-                  <p className="text-sm text-muted-foreground line-clamp-3 leading-relaxed">
-                    {story.excerpt}
-                  </p>
-                  <div className="flex flex-wrap gap-1.5 mt-4">
-                    {story.tags.map((tag) => (
-                      <Badge
-                        key={tag}
-                        variant="outline"
-                        className="text-xs px-2 py-0.5 border-primary/30 text-primary/80"
+                      {siteOpen ? (
+                        <Globe className="w-5 h-5 text-green-600 dark:text-green-400" />
+                      ) : (
+                        <EyeOff className="w-5 h-5 text-red-600 dark:text-red-400" />
+                      )}
+                    </div>
+                    <div>
+                      <h2 className="font-serif text-lg font-semibold text-foreground leading-tight">
+                        Site Visibility
+                      </h2>
+                      <p className="text-xs text-muted-foreground">
+                        {siteOpen
+                          ? "Site is public — visible to all visitors."
+                          : "Site is private — only you can see it."}
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={toggleSiteOpen}
+                    className={
+                      siteOpen
+                        ? "bg-green-600 hover:bg-green-700 text-white gap-2"
+                        : "bg-red-600 hover:bg-red-700 text-white gap-2"
+                    }
+                    data-ocid="admin.visibility.toggle"
+                  >
+                    {siteOpen ? (
+                      <>
+                        <Globe className="w-4 h-4" />
+                        Site is PUBLIC — Click to make Private
+                      </>
+                    ) : (
+                      <>
+                        <EyeOff className="w-4 h-4" />
+                        Site is PRIVATE — Click to make Public
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </motion.div>
+            )}
+
+            {/* ───────── ADMIN BANNED USERS PANEL ───────── */}
+            {isAdmin && (
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3, duration: 0.4 }}
+                className="mt-10 rounded-xl border border-border bg-card p-6 shadow-xs"
+                data-ocid="admin.panel"
+              >
+                <div className="flex items-center gap-2 mb-5">
+                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-orange-100 dark:bg-orange-900/30">
+                    <UserX className="w-4 h-4 text-orange-500" />
+                  </div>
+                  <div>
+                    <h2 className="font-serif text-lg font-semibold text-foreground leading-tight">
+                      Banned Users
+                    </h2>
+                    <p className="text-xs text-muted-foreground">
+                      Users on the ban list cannot post new comments.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Manual ban input */}
+                <div className="flex gap-2 mb-5">
+                  <Input
+                    placeholder="Enter username to ban..."
+                    value={manualBanInput}
+                    onChange={(e) => setManualBanInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && manualBanInput.trim()) {
+                        banUser(manualBanInput.trim());
+                        setManualBanInput("");
+                      }
+                    }}
+                    className="flex-1"
+                    data-ocid="admin.input"
+                  />
+                  <Button
+                    variant="outline"
+                    className="border-orange-300 text-orange-600 hover:bg-orange-50 hover:text-orange-700"
+                    onClick={() => {
+                      if (manualBanInput.trim()) {
+                        banUser(manualBanInput.trim());
+                        setManualBanInput("");
+                      }
+                    }}
+                    disabled={!manualBanInput.trim()}
+                    data-ocid="admin.submit_button"
+                  >
+                    <UserX className="w-4 h-4 mr-1.5" />
+                    Ban
+                  </Button>
+                </div>
+
+                {/* Banned users list */}
+                {bannedUsers.length === 0 ? (
+                  <div
+                    className="text-center py-8 rounded-lg border border-dashed border-border"
+                    data-ocid="admin.empty_state"
+                  >
+                    <UserCheck className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
+                    <p className="text-sm text-muted-foreground">
+                      No users currently banned.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2" data-ocid="admin.list">
+                    {bannedUsers.map((username, idx) => (
+                      <div
+                        key={username}
+                        className="flex items-center justify-between rounded-lg border border-orange-200 dark:border-orange-900/50 bg-orange-50/50 dark:bg-orange-900/10 px-4 py-3"
+                        data-ocid={`admin.item.${idx + 1}`}
                       >
-                        {tag}
-                      </Badge>
+                        <div className="flex items-center gap-2">
+                          <UserX className="w-4 h-4 text-orange-500 flex-shrink-0" />
+                          <span className="text-sm font-medium text-foreground">
+                            {username}
+                          </span>
+                          <Badge
+                            variant="outline"
+                            className="text-xs border-orange-300 text-orange-600 bg-orange-50"
+                          >
+                            Banned
+                          </Badge>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-green-600 hover:text-green-700 hover:bg-green-50 gap-1.5 h-8 px-3"
+                          onClick={() => unbanUser(username)}
+                          data-ocid={`admin.delete_button.${idx + 1}`}
+                        >
+                          <UserCheck className="w-3.5 h-3.5" />
+                          Unban
+                        </Button>
+                      </div>
                     ))}
                   </div>
-                  {isAdmin && (
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteStory(story.id)}
-                      className="absolute top-3 right-3 p-1 rounded text-muted-foreground hover:text-red-500 hover:bg-red-50 transition-colors"
-                      aria-label="Delete story"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-
-                {/* Card footer */}
-                <div className="border-t border-border px-5 py-3 flex items-center justify-between">
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <TrendingUp className="w-3.5 h-3.5" />
-                      {story.reads.toLocaleString()}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <MessageSquare className="w-3.5 h-3.5" />
-                      {story.comments + getTotalCommentCount(story.id)}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => toggleHeart(story.id)}
-                      className={`p-1.5 rounded-md transition-colors ${
-                        hearts.has(story.id)
-                          ? "text-red-500"
-                          : "text-muted-foreground hover:text-red-400"
-                      }`}
-                      data-ocid={`stories.toggle.${idx + 1}`}
-                      aria-label="Heart story"
-                    >
-                      <Heart
-                        className={`w-4 h-4 ${hearts.has(story.id) ? "fill-current" : ""}`}
-                      />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => toggleBookmark(story.id)}
-                      className={`p-1.5 rounded-md transition-colors ${
-                        bookmarks.has(story.id)
-                          ? "text-primary"
-                          : "text-muted-foreground hover:text-primary"
-                      }`}
-                      data-ocid={`stories.secondary_button.${idx + 1}`}
-                      aria-label="Bookmark story"
-                    >
-                      <Bookmark
-                        className={`w-4 h-4 ${bookmarks.has(story.id) ? "fill-current" : ""}`}
-                      />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowCommentsModal(story.id)}
-                      className="p-1.5 rounded-md text-muted-foreground hover:text-primary transition-colors relative"
-                      aria-label="Comments"
-                      data-ocid={`comments.open_modal_button.${idx + 1}`}
-                    >
-                      <MessageSquare className="w-4 h-4" />
-                      {getTotalCommentCount(story.id) > 0 && (
-                        <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-primary text-primary-foreground text-[9px] font-bold rounded-full flex items-center justify-center leading-none">
-                          {getTotalCommentCount(story.id)}
-                        </span>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </motion.article>
-            ))}
-          </div>
-        )}
-
-        {/* Review Stars CTA */}
-        {!isAdmin && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.4, duration: 0.5 }}
-            className="mt-12 text-center"
-          >
-            {commenterUser ? (
-              <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-full px-5 py-2.5 text-sm text-primary font-medium">
-                <User className="w-4 h-4" />
-                Signed in as <span className="font-bold">{commenterUser}</span>{" "}
-                — ready to comment!
-              </div>
-            ) : (
-              <button
-                type="button"
-                className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-full px-5 py-2.5 text-sm text-primary font-medium cursor-pointer hover:bg-primary/15 transition-colors"
-                onClick={() => openCommenterAuth("signup")}
-              >
-                <Star className="w-4 h-4 fill-primary" />
-                Create a free account to comment and track your reading
-              </button>
+                )}
+              </motion.div>
             )}
-          </motion.div>
+
+            {/* Review Stars CTA */}
+            {!isAdmin && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.4, duration: 0.5 }}
+                className="mt-12 text-center"
+              >
+                {commenterUser ? (
+                  <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-full px-5 py-2.5 text-sm text-primary font-medium">
+                    <User className="w-4 h-4" />
+                    Signed in as{" "}
+                    <span className="font-bold">{commenterUser}</span> — ready
+                    to comment!
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-full px-5 py-2.5 text-sm text-primary font-medium cursor-pointer hover:bg-primary/15 transition-colors"
+                    onClick={() => openCommenterAuth("signup")}
+                  >
+                    <Star className="w-4 h-4 fill-primary" />
+                    Create a free account to comment and track your reading
+                  </button>
+                )}
+              </motion.div>
+            )}
+          </>
         )}
       </main>
 
